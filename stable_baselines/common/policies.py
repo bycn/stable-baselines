@@ -12,6 +12,7 @@ from stable_baselines.common.distributions import make_proba_dist_type, Categori
 from stable_baselines.common.input import observation_input
 
 
+
 def nature_cnn(scaled_images, **kwargs):
     """
     CNN from Nature paper.
@@ -20,13 +21,29 @@ def nature_cnn(scaled_images, **kwargs):
     :param kwargs: (dict) Extra keywords parameters for the convolutional layers of the CNN
     :return: (TensorFlow Tensor) The CNN output layer
     """
+    def convfc(input_tensor, vardim=None):
+        """
+        Reshapes a Tensor from a convolutional network to a Tensor for a fully connected network
+
+        :param input_tensor: (TensorFlow Tensor) The convolutional input tensor
+        :return: (TensorFlow Tensor) The fully connected output tensor
+        """
+        n_hidden = np.prod([v.value for v in input_tensor.get_shape()[1:]])
+        if vardim is not None:
+            input_tensor = tf.reshape(input_tensor, [vardim, n_hidden])
+        else:
+            input_tensor = tf.reshape(input_tensor, [-1, n_hidden])
+            
+        return input_tensor
+
+    vardim = tf.shape(scaled_images)[0]
+    scaled_images = tf.reshape(scaled_images[:vardim, :12288], [vardim, 64,64,3]) / 255.
     activ = tf.nn.relu
     layer_1 = activ(conv(scaled_images, 'c1', n_filters=32, filter_size=8, stride=4, init_scale=np.sqrt(2), **kwargs))
-    layer_2 = activ(conv(layer_1, 'c2', n_filters=64, filter_size=4, stride=2, init_scale=np.sqrt(2), **kwargs))
-    layer_3 = activ(conv(layer_2, 'c3', n_filters=64, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
-    layer_3 = conv_to_fc(layer_3)
-    return activ(linear(layer_3, 'fc1', n_hidden=512, init_scale=np.sqrt(2)))
-
+    layer_2 = activ(conv(layer_1, 'c2', n_filters=32, filter_size=4, stride=2, init_scale=np.sqrt(2), **kwargs))
+    layer_3 = activ(conv(layer_2, 'c3', n_filters=32, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
+    layer_3 = convfc(layer_3, vardim)
+    return activ(linear(layer_3, 'fc1', n_hidden=200, init_scale=np.sqrt(2)))
 
 def mlp_extractor(flat_observations, net_arch, act_fun):
     """

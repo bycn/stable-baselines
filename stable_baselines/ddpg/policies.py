@@ -117,7 +117,7 @@ class FeedForwardPolicy(DDPGPolicy):
         self.reuse = reuse
         self._qvalue = None
         if layers is None:
-            layers = [64, 64]
+            layers = [200]
         self.layers = layers
 
         assert len(layers) >= 1, "Error: must have at least one hidden layer for the policy."
@@ -134,13 +134,13 @@ class FeedForwardPolicy(DDPGPolicy):
             else:
                 pi_h = tf.layers.flatten(obs)
             for i, layer_size in enumerate(self.layers):
-                pi_h = tf.layers.dense(pi_h, layer_size, name='fc' + str(i))
+                pi_h = tf.layers.dense(pi_h, layer_size, name='fc' + str(i), kernel_initializer=tf.contrib.layers.variance_scaling_initializer(1, uniform=True))
                 if self.layer_norm:
                     pi_h = tf.contrib.layers.layer_norm(pi_h, center=True, scale=True)
                 pi_h = self.activ(pi_h)
             self.policy = tf.nn.tanh(tf.layers.dense(pi_h, self.ac_space.shape[0], name=scope,
-                                                     kernel_initializer=tf.random_uniform_initializer(minval=-3e-3,
-                                                                                                      maxval=3e-3)))
+                                                     kernel_initializer=tf.random_uniform_initializer(minval=-3e-4,
+                                                                                                      maxval=3e-4)))
         return self.policy
 
     def make_critic(self, obs=None, action=None, reuse=False, scope="qf"):
@@ -155,7 +155,7 @@ class FeedForwardPolicy(DDPGPolicy):
             else:
                 qf_h = tf.layers.flatten(obs)
             for i, layer_size in enumerate(self.layers):
-                qf_h = tf.layers.dense(qf_h, layer_size, name='fc' + str(i))
+                qf_h = tf.layers.dense(qf_h, layer_size, name='fc' + str(i), kernel_initializer=tf.contrib.layers.variance_scaling_initializer(1, uniform=True))
                 if self.layer_norm:
                     qf_h = tf.contrib.layers.layer_norm(qf_h, center=True, scale=True)
                 qf_h = self.activ(qf_h)
@@ -164,8 +164,8 @@ class FeedForwardPolicy(DDPGPolicy):
 
             # the name attribute is used in pop-art normalization
             qvalue_fn = tf.layers.dense(qf_h, 1, name='qf_output',
-                                        kernel_initializer=tf.random_uniform_initializer(minval=-3e-3,
-                                                                                         maxval=3e-3))
+                                        kernel_initializer=tf.random_uniform_initializer(minval=-3e-4,
+                                                                                         maxval=3e-4))
 
             self.qvalue_fn = qvalue_fn
             self._qvalue = qvalue_fn[:, 0]
