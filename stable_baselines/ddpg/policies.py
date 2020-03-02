@@ -117,9 +117,10 @@ class FeedForwardPolicy(DDPGPolicy):
         self.reuse = reuse
         self._qvalue = None
         if layers is None:
-            layers = [200]
+            layers = [64]
         self.layers = layers
-
+        self.init_level = 3e-4
+        self.bias_init_level = 3e-4
         assert len(layers) >= 1, "Error: must have at least one hidden layer for the policy."
 
         self.activ = act_fun
@@ -134,13 +135,14 @@ class FeedForwardPolicy(DDPGPolicy):
             else:
                 pi_h = tf.layers.flatten(obs)
             for i, layer_size in enumerate(self.layers):
-                pi_h = tf.layers.dense(pi_h, layer_size, name='fc' + str(i), kernel_initializer=tf.contrib.layers.variance_scaling_initializer(1, uniform=True))
+                pi_h = tf.layers.dense(pi_h, layer_size, name='fc' + str(i), kernel_initializer=tf.contrib.layers.variance_scaling_initializer(1/3, uniform=True))
                 if self.layer_norm:
                     pi_h = tf.contrib.layers.layer_norm(pi_h, center=True, scale=True)
                 pi_h = self.activ(pi_h)
             self.policy = tf.nn.tanh(tf.layers.dense(pi_h, self.ac_space.shape[0], name=scope,
-                                                     kernel_initializer=tf.random_uniform_initializer(minval=-3e-4,
-                                                                                                      maxval=3e-4)))
+                                                     kernel_initializer=tf.random_uniform_initializer(minval=-self.init_level,
+                                                                                                      maxval=self.init_level), bias_initializer=tf.random_uniform_initializer(minval=-self.bias_init_level,
+                                                                                                      maxval=self.bias_init_level)))
         return self.policy
 
     def make_critic(self, obs=None, action=None, reuse=False, scope="qf"):
@@ -155,7 +157,7 @@ class FeedForwardPolicy(DDPGPolicy):
             else:
                 qf_h = tf.layers.flatten(obs)
             for i, layer_size in enumerate(self.layers):
-                qf_h = tf.layers.dense(qf_h, layer_size, name='fc' + str(i), kernel_initializer=tf.contrib.layers.variance_scaling_initializer(1, uniform=True))
+                qf_h = tf.layers.dense(qf_h, layer_size, name='fc' + str(i), kernel_initializer=tf.contrib.layers.variance_scaling_initializer(1/3, uniform=True))
                 if self.layer_norm:
                     qf_h = tf.contrib.layers.layer_norm(qf_h, center=True, scale=True)
                 qf_h = self.activ(qf_h)
@@ -164,8 +166,9 @@ class FeedForwardPolicy(DDPGPolicy):
 
             # the name attribute is used in pop-art normalization
             qvalue_fn = tf.layers.dense(qf_h, 1, name='qf_output',
-                                        kernel_initializer=tf.random_uniform_initializer(minval=-3e-4,
-                                                                                         maxval=3e-4))
+                                        kernel_initializer=tf.random_uniform_initializer(minval=-self.init_level,
+                                                                                         maxval=self.init_level), bias_initializer=tf.random_uniform_initializer(minval=-self.bias_init_level,
+                                                                                                      maxval=self.bias_init_level))
 
             self.qvalue_fn = qvalue_fn
             self._qvalue = qvalue_fn[:, 0]

@@ -13,7 +13,7 @@ from stable_baselines.common.input import observation_input
 
 
 
-def nature_cnn(scaled_images, **kwargs):
+def nature_cnn(scaled_images, last_hidden=200, **kwargs):
     """
     CNN from Nature paper.
 
@@ -40,10 +40,10 @@ def nature_cnn(scaled_images, **kwargs):
     scaled_images = tf.reshape(scaled_images[:vardim, :12288], [vardim, 64,64,3]) / 255.
     activ = tf.nn.relu
     layer_1 = activ(conv(scaled_images, 'c1', n_filters=32, filter_size=8, stride=4, init_scale=np.sqrt(2), **kwargs))
-    layer_2 = activ(conv(layer_1, 'c2', n_filters=32, filter_size=4, stride=2, init_scale=np.sqrt(2), **kwargs))
+    layer_2 = activ(conv(layer_1, 'c2', n_filters=32, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
     layer_3 = activ(conv(layer_2, 'c3', n_filters=32, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
     layer_3 = convfc(layer_3, vardim)
-    return activ(linear(layer_3, 'fc1', n_hidden=200, init_scale=np.sqrt(2)))
+    return activ(linear(layer_3, 'fc1', n_hidden=last_hidden, init_scale=np.sqrt(2)))
 
 def mlp_extractor(flat_observations, net_arch, act_fun):
     """

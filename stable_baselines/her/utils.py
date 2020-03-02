@@ -98,8 +98,8 @@ class HERGoalEnvWrapper(object):
     def compute_reward(self, achieved_goal, desired_goal, info):
         return self.env.compute_reward(achieved_goal, desired_goal, info)
 
-    def render(self, mode='human'):
-        return self.env.render(mode)
+    def render(self, mode='human', width=64, height=64):
+        return self.env.render(mode, width=64, height=64)
 
     def close(self):
         return self.env.close()

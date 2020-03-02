@@ -4,6 +4,9 @@ import time
 from collections import deque
 import pickle
 import warnings
+from PIL import Image
+import imageio
+
 
 import gym
 import numpy as np
@@ -204,7 +207,7 @@ class DDPG(OffPolicyRLModel):
                  return_range=(-np.inf, np.inf), actor_lr=1e-4, critic_lr=1e-3, clip_norm=None, reward_scale=1.,
                  render=False, render_eval=False, memory_limit=None, buffer_size=50000, random_exploration=0.0,
                  verbose=0, tensorboard_log=None, _init_setup_model=True, policy_kwargs=None,
-                 full_tensorboard_log=False, seed=None, n_cpu_tf_sess=1):
+                 full_tensorboard_log=False, seed=None, n_cpu_tf_sess=1, log_dir=None):
 
         super(DDPG, self).__init__(policy=policy, env=env, replay_buffer=None,
                                    verbose=verbose, policy_base=DDPGPolicy,
@@ -305,6 +308,9 @@ class DDPG(OffPolicyRLModel):
         self.target_params = None
         self.obs_rms_params = None
         self.ret_rms_params = None
+
+        self.log_dir = log_dir or "tmp"
+        
 
         if _init_setup_model:
             self.setup_model()
@@ -423,7 +429,8 @@ class DDPG(OffPolicyRLModel):
                 with tf.variable_scope("input_info", reuse=False):
                     tf.summary.scalar('rewards', tf.reduce_mean(self.rewards))
                     tf.summary.scalar('param_noise_stddev', tf.reduce_mean(self.param_noise_stddev))
-
+                    tf.summary.scalar("actions_x", tf.reduce_mean(self.actions,0)[0])
+                    tf.summary.scalar("actions_y", tf.reduce_mean(self.actions,0)[1])
                     if self.full_tensorboard_log:
                         tf.summary.histogram('rewards', self.rewards)
                         tf.summary.histogram('param_noise_stddev', self.param_noise_stddev)
@@ -437,6 +444,10 @@ class DDPG(OffPolicyRLModel):
                     self._setup_critic_optimizer()
                     tf.summary.scalar('actor_loss', self.actor_loss)
                     tf.summary.scalar('critic_loss', self.critic_loss)
+                    tf.summary.scalar('actor_grads_mean', tf_util.gradstats(self.actor_loss, tf_util.get_trainable_vars('model/pi/'),
+                                             clip_norm=self.clip_norm)) 
+                    tf.summary.scalar('critic_grads_mean', tf_util.gradstats(self.critic_loss, tf_util.get_trainable_vars('model/qf/'),
+                                             clip_norm=self.clip_norm))
 
                 self.params = tf_util.get_trainable_vars("model") \
                     + tf_util.get_trainable_vars('noise/') + tf_util.get_trainable_vars('noise_adapt/')
@@ -503,6 +514,7 @@ class DDPG(OffPolicyRLModel):
                                             clip_norm=self.clip_norm)
         self.actor_optimizer = MpiAdam(var_list=tf_util.get_trainable_vars('model/pi/'), beta1=0.9, beta2=0.999,
                                        epsilon=1e-08)
+
 
     def _setup_critic_optimizer(self):
         """
@@ -822,12 +834,22 @@ class DDPG(OffPolicyRLModel):
 
             if self.verbose >= 2:
                 logger.log('Using agent with the following configuration:')
-                logger.log(str(self.__dict__.items()))
+                cfg = str(self.__dict__.items())
+                logger.log(cfg)
+                try:
+                    i = 0
+                    while os.path.exists(self.log_dir + "/config_%s.txt" % i):
+                        i += 1
+                    with open(self.log_dir + "/config_%s.txt" % i, "w") as text_file:
+                        text_file.write(cfg)
+                except Exception as e:
+                    print(e)
+                    print("failed to write configuration")
 
             eval_episode_rewards_history = deque(maxlen=100)
             episode_rewards_history = deque(maxlen=100)
             episode_successes = []
-
+            counter = 0
 
             with self.sess.as_default(), self.graph.as_default():
                 # Prepare everything.
@@ -958,6 +980,7 @@ class DDPG(OffPolicyRLModel):
                             self._update_target_net()
 
                         # Evaluate.
+                        # frames = []
                         eval_episode_rewards = []
                         eval_qs = []
                         if self.eval_env is not None:
@@ -965,10 +988,16 @@ class DDPG(OffPolicyRLModel):
                             for _ in range(self.nb_eval_steps):
                                 if total_steps >= total_timesteps:
                                     return self
-
                                 eval_action, eval_q = self._policy(eval_obs, apply_noise=False, compute_q=True)
                                 unscaled_action = unscale_action(self.action_space, eval_action)
                                 eval_obs, eval_r, eval_done, _ = self.eval_env.step(unscaled_action)
+                                ###
+                                # if counter % 10 == 0:
+                                #     if len(eval_obs) >= 64*64*3:
+                                #         frames.append(Image.fromarray(np.array(eval_obs[:12288].reshape((64,64,3)).astype("uint8"))))
+                                #     else:
+                                #         frames.append(Image.fromarray(self.eval_env.render("rgb_array",width=64,height=64)))
+                                ###
                                 if self.render_eval:
                                     self.eval_env.render()
                                 eval_episode_reward += eval_r
@@ -980,6 +1009,10 @@ class DDPG(OffPolicyRLModel):
                                     eval_episode_rewards.append(eval_episode_reward)
                                     eval_episode_rewards_history.append(eval_episode_reward)
                                     eval_episode_reward = 0.
+                        # if counter % 10 == 0:
+                        #     imageio.mimsave((self.log_dir) + "/%s.gif" % counter, frames)
+                        ###
+                        counter += 1
 
                     mpi_size = MPI.COMM_WORLD.Get_size()
                     # Log stats.

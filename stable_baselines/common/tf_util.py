@@ -251,6 +251,13 @@ def flatgrad(loss, var_list, clip_norm=None):
         for (v, grad) in zip(var_list, grads)
     ])
 
+def gradstats(loss, var_list, clip_norm=None):
+    grads = tf.gradients(loss, var_list)
+    if clip_norm is not None:
+        grads = [tf.clip_by_norm(grad, clip_norm=clip_norm) for grad in grads]
+    grads = [tf.norm(grad) if grad is not None else 0 for grad in grads]
+    return tf.reduce_mean(grads)
+
 
 class SetFromFlat(object):
     def __init__(self, var_list, dtype=tf.float32, sess=None):

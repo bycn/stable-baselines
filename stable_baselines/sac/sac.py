@@ -175,6 +175,7 @@ class SAC(OffPolicyRLModel):
                     # first return value corresponds to deterministic actions
                     # policy_out corresponds to stochastic actions, used for training
                     # logp_pi is the log probability of actions taken by the policy
+
                     self.deterministic_action, policy_out, logp_pi = self.policy_tf.make_actor(self.processed_obs_ph)
                     # Monitor the entropy of the policy,
                     # this is not used for training

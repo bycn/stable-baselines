@@ -133,7 +133,9 @@ def conv(input_tensor, scope, *, n_filters, filter_size, stride,
     n_input = input_tensor.get_shape()[channel_ax].value
     wshape = [filter_height, filter_width, n_input, n_filters]
     with tf.variable_scope(scope):
-        weight = tf.get_variable("w", wshape, initializer=tf.contrib.layers.variance_scaling_initializer(1, uniform=True))
+        # weight = tf.get_variable("w", wshape, initializer=tf.contrib.layers.variance_scaling_initializer(1/3, uniform=True))
+        weight = tf.get_variable("w", wshape, initializer=tf.contrib.layers.xavier_initializer_conv2d( uniform=True))
+
         bias = tf.get_variable("b", bias_var_shape, initializer=tf.constant_initializer(0.0))
         if not one_dim_bias and data_format == 'NHWC':
             bias = tf.reshape(bias, bshape)
@@ -558,7 +560,7 @@ def q_explained_variance(q_pred, q_true):
     return 1.0 - (var_pred / var_y)
 
 
-def total_episode_reward_logger(rew_acc, rewards, masks, writer, steps):
+def total_episode_reward_logger(rew_acc, rewards, masks, writer, steps, tag="episode_reward"):
     """
     calculates the cumulated episode reward, and prints to tensorflow log the output
 
@@ -576,10 +578,10 @@ def total_episode_reward_logger(rew_acc, rewards, masks, writer, steps):
                 rew_acc[env_idx] += sum(rewards[env_idx])
             else:
                 rew_acc[env_idx] += sum(rewards[env_idx, :dones_idx[0, 0]])
-                summary = tf.Summary(value=[tf.Summary.Value(tag="episode_reward", simple_value=rew_acc[env_idx])])
+                summary = tf.Summary(value=[tf.Summary.Value(tag=tag, simple_value=rew_acc[env_idx])])
                 writer.add_summary(summary, steps + dones_idx[0, 0])
                 for k in range(1, len(dones_idx[:, 0])):
                     rew_acc[env_idx] = sum(rewards[env_idx, dones_idx[k-1, 0]:dones_idx[k, 0]])
-                    summary = tf.Summary(value=[tf.Summary.Value(tag="episode_reward", simple_value=rew_acc[env_idx])])
+                    summary = tf.Summary(value=[tf.Summary.Value(tag=tag, simple_value=rew_acc[env_idx])])
                     writer.add_summary(summary, steps + dones_idx[k, 0])
                 rew_acc[env_idx] = sum(rewards[env_idx, dones_idx[-1, 0]:])
