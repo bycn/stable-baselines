@@ -369,7 +369,7 @@ class TD3(OffPolicyRLModel):
                         # Note: the policy is updated less frequently than the Q functions
                         # this is controlled by the `policy_delay` parameter
                         mb_infos_vals.append(
-                            self._train_step(step, writer, current_lr, (step + grad_step) % self.policy_delay == 0))
+                            self._train_step(step + grad_step, writer, current_lr, (step + grad_step) % self.policy_delay == 0))
 
                     # Log losses and entropy, useful for monitor training
                     if len(mb_infos_vals) > 0:
